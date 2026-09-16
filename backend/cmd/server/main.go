@@ -11,6 +11,8 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/joho/godotenv"
+	embed "github.com/jobman/backend"
 	"github.com/jobman/backend/config"
 	"github.com/jobman/backend/database"
 	"github.com/jobman/backend/internal/auth"
@@ -27,6 +29,8 @@ import (
 )
 
 func main() {
+	_ = godotenv.Load()
+
 	cfg, err := config.Load()
 	if err != nil {
 		log.Fatalf("config: %v", err)
@@ -143,6 +147,10 @@ func buildHandler(cfg *config.Config, pool *pgxpool.Pool) http.Handler {
 	mux.HandleFunc("GET "+api+"/public/receipts/{token}", receiptsHandler.PublicJSON)
 	mux.HandleFunc("GET /r/{token}", receiptsHandler.PublicPage)
 
+	if cfg.Debug {
+		swaggerUI(mux)
+	}
+
 	// --- Authenticated routes ---
 	authed := http.NewServeMux()
 	ro := func(roles ...string) func(http.HandlerFunc) http.HandlerFunc {
@@ -208,6 +216,50 @@ func httpapiWriteJSON(w http.ResponseWriter, status int, body string) {
 	w.WriteHeader(status)
 	_, _ = w.Write([]byte(body))
 }
+
+// swaggerUI exposes the OpenAPI spec and Swagger UI on /swagger when DEBUG=true.
+func swaggerUI(mux *http.ServeMux) {
+	mux.HandleFunc("GET /swagger", func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, "/swagger/", http.StatusFound)
+	})
+	mux.HandleFunc("GET /swagger/", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		_, _ = w.Write([]byte(swaggerHTML))
+	})
+	mux.HandleFunc("GET /swagger/openapi.yaml", func(w http.ResponseWriter, r *http.Request) {
+		data, err := embed.OpenAPIFS.ReadFile("openapi.yaml")
+		if err != nil {
+			httpapiWriteJSON(w, http.StatusNotFound, `{"error":{"code":"RESOURCE_NOT_FOUND","message":"OpenAPI spec not found."}}`)
+			return
+		}
+		w.Header().Set("Content-Type", "application/yaml; charset=utf-8")
+		_, _ = w.Write(data)
+	})
+}
+
+const swaggerHTML = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Jobman API - Swagger</title>
+<link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@5/swagger-ui.css">
+</head>
+<body>
+<div id="swagger-ui"></div>
+<script src="https://unpkg.com/swagger-ui-dist@5/swagger-ui-bundle.js"></script>
+<script>
+window.onload = function () {
+  window.ui = SwaggerUIBundle({
+    url: './openapi.yaml',
+    dom_id: '#swagger-ui',
+    deepLinking: true,
+    presets: [SwaggerUIBundle.presets.apis, SwaggerUIBundle.SwaggerUIStandalonePreset],
+  });
+};
+</script>
+</body>
+</html>`
 
 // receiptsAdapter implements jobs.ReceiptIssuer over the receipts package.
 type receiptsAdapter struct {

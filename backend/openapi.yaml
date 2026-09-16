@@ -1,0 +1,846 @@
+openapi: 3.0.3
+info:
+  title: Jobman Backend API
+  version: 1.0.0
+  description: |
+    Service management API (customers, technicians, jobs, payments, receipts).
+    Auth: most routes require `Authorization: Bearer <token>` from POST /api/v1/auth/login
+    or /api/v1/auth/register.
+servers:
+  - url: http://localhost:8080
+    description: Local development server
+tags:
+  - name: auth
+  - name: business
+  - name: customers
+  - name: technicians
+  - name: jobs
+  - name: payments
+  - name: receipts
+  - name: dashboard
+security:
+  - bearerAuth: []
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+              example: VALIDATION_ERROR
+            message:
+              type: string
+      example:
+        error:
+          code: VALIDATION_ERROR
+          message: name is required.
+    RegisterRequest:
+      type: object
+      required: [business_name, owner_name, phone, email, password]
+      properties:
+        business_name: { type: string, example: "ABC AC Services" }
+        owner_name: { type: string, example: "Ramesh Kumar" }
+        phone: { type: string, example: "+919999999999" }
+        email: { type: string, format: email, example: "owner@abc.com" }
+        password: { type: string, format: password, minLength: 6, example: "secret123" }
+    LoginRequest:
+      type: object
+      required: [phone, password]
+      properties:
+        phone: { type: string, example: "+919999999999" }
+        password: { type: string, format: password, example: "secret123" }
+    PublicUser:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        role: { type: string, enum: [OWNER, ADMIN, TECHNICIAN] }
+        business_id: { type: string, format: uuid }
+    PublicBusiness:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+    AuthResponse:
+      type: object
+      properties:
+        token: { type: string, description: "JWT to send as Authorization: Bearer <token>" }
+        user: { $ref: "#/components/schemas/PublicUser" }
+        business: { $ref: "#/components/schemas/PublicBusiness" }
+    MeResponse:
+      type: object
+      properties:
+        user: { $ref: "#/components/schemas/PublicUser" }
+        business: { $ref: "#/components/schemas/PublicBusiness" }
+    Business:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        phone: { type: string, nullable: true }
+        email: { type: string, nullable: true }
+        address: { type: string, nullable: true }
+        timezone: { type: string }
+        currency: { type: string }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    BusinessUpdateRequest:
+      type: object
+      properties:
+        name: { type: string }
+        phone: { type: string, nullable: true }
+        email: { type: string, nullable: true }
+        address: { type: string, nullable: true }
+        timezone: { type: string }
+        currency: { type: string }
+    Customer:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        business_id: { type: string, format: uuid }
+        name: { type: string }
+        phone: { type: string }
+        email: { type: string, nullable: true }
+        address: { type: string, nullable: true }
+        latitude: { type: number, format: float, nullable: true }
+        longitude: { type: number, format: float, nullable: true }
+        notes: { type: string, nullable: true }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    CustomerCreateRequest:
+      type: object
+      required: [name, phone]
+      properties:
+        name: { type: string, example: "Suresh Iyer" }
+        phone: { type: string, example: "+919876543210" }
+        email: { type: string, nullable: true }
+        address: { type: string, nullable: true }
+        latitude: { type: number, format: float, nullable: true }
+        longitude: { type: number, format: float, nullable: true }
+        notes: { type: string, nullable: true }
+    CustomerUpdateRequest:
+      type: object
+      properties:
+        name: { type: string, nullable: true }
+        phone: { type: string, nullable: true }
+        email: { type: string, nullable: true }
+        address: { type: string, nullable: true }
+        latitude: { type: number, format: float, nullable: true }
+        longitude: { type: number, format: float, nullable: true }
+        notes: { type: string, nullable: true }
+    TechniciansList:
+      type: object
+      properties:
+        data:
+          type: array
+          items: { $ref: "#/components/schemas/Technician" }
+    Technician:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        business_id: { type: string, format: uuid }
+        user_id: { type: string, format: uuid }
+        name: { type: string }
+        phone: { type: string }
+        email: { type: string, nullable: true }
+        status: { type: string, enum: [AVAILABLE, BUSY, INACTIVE] }
+        is_active: { type: boolean }
+        last_login_at: { type: string, format: date-time, nullable: true }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    TechnicianCreateRequest:
+      type: object
+      required: [name, phone, password]
+      properties:
+        name: { type: string, example: "Vijay Kumar" }
+        phone: { type: string, example: "+919812345678" }
+        password: { type: string, format: password, minLength: 6 }
+    TechnicianUpdateRequest:
+      type: object
+      properties:
+        name: { type: string }
+        phone: { type: string }
+        email: { type: string }
+        status: { type: string, enum: [AVAILABLE, BUSY, INACTIVE] }
+        is_active: { type: boolean }
+    Job:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        business_id: { type: string, format: uuid }
+        customer_id: { type: string, format: uuid }
+        technician_id: { type: string, format: uuid, nullable: true }
+        job_number: { type: string, example: "JOB-0001" }
+        service_type: { type: string, example: "AC Installation" }
+        problem_description: { type: string, nullable: true }
+        address: { type: string, nullable: true }
+        latitude: { type: number, format: float, nullable: true }
+        longitude: { type: number, format: float, nullable: true }
+        status:
+          type: string
+          enum: [PENDING, ACCEPTED, ON_THE_WAY, STARTED, COMPLETED, CANCELLED]
+        estimated_amount: { type: number, format: float }
+        final_amount: { type: number, format: float }
+        scheduled_at: { type: string, format: date-time, nullable: true }
+        accepted_at: { type: string, format: date-time, nullable: true }
+        on_the_way_at: { type: string, format: date-time, nullable: true }
+        started_at: { type: string, format: date-time, nullable: true }
+        completed_at: { type: string, format: date-time, nullable: true }
+        notes: { type: string, nullable: true }
+        created_by: { type: string, format: uuid }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+        total_paid: { type: number, format: float }
+        payment_status: { type: string, enum: [UNPAID, PARTIAL, PAID] }
+        customer: { $ref: "#/components/schemas/Customer" }
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/JobItem" }
+        payments:
+          type: array
+          items: { $ref: "#/components/schemas/Payment" }
+        status_history:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: string, format: uuid }
+              old_status: { type: string, nullable: true }
+              new_status: { type: string }
+              changed_by: { type: string, format: uuid }
+              created_at: { type: string, format: date-time }
+        receipt:
+          type: object
+          nullable: true
+          properties:
+            id: { type: string, format: uuid }
+            receipt_number: { type: string }
+            issued_at: { type: string, format: date-time }
+    JobItem:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        business_id: { type: string, format: uuid }
+        job_id: { type: string, format: uuid }
+        description: { type: string }
+        quantity: { type: number, format: float }
+        unit_price: { type: number, format: float }
+        total_price: { type: number, format: float }
+        created_at: { type: string, format: date-time }
+    JobCreateRequest:
+      type: object
+      required: [customer_id, service_type]
+      properties:
+        customer_id: { type: string, format: uuid }
+        technician_id: { type: string, format: uuid, nullable: true }
+        service_type: { type: string, example: "AC Repair" }
+        problem_description: { type: string, nullable: true }
+        address: { type: string, nullable: true }
+        latitude: { type: number, format: float, nullable: true }
+        longitude: { type: number, format: float, nullable: true }
+        estimated_amount: { type: number, format: float, example: 2500 }
+        scheduled_at: { type: string, format: date-time, nullable: true, description: RFC3339 timestamp }
+    JobUpdateRequest:
+      type: object
+      properties:
+        customer_id: { type: string, format: uuid, nullable: true }
+        technician_id: { type: string, format: uuid, nullable: true, description: empty string removes the tech }
+        service_type: { type: string, nullable: true }
+        problem_description: { type: string, nullable: true }
+        address: { type: string, nullable: true }
+        estimated_amount: { type: number, format: float, nullable: true }
+        scheduled_at: { type: string, format: date-time, nullable: true }
+        notes: { type: string, nullable: true }
+    CompleteRequest:
+      type: object
+      required: [items]
+      properties:
+        notes: { type: string, nullable: true }
+        items:
+          type: array
+          minItems: 1
+          items:
+            type: object
+            required: [description]
+            properties:
+              description: { type: string }
+              quantity:
+                type: number
+                format: float
+                example: 1
+              unit_price:
+                type: number
+                format: float
+                example: 2500
+        payment:
+          type: object
+          properties:
+            amount: { type: number, format: float, example: 2500 }
+            method: { type: string, enum: [CASH, UPI, CARD, BANK_TRANSFER, OTHER] }
+            transaction_reference: { type: string }
+    Payment:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        business_id: { type: string, format: uuid }
+        job_id: { type: string, format: uuid }
+        amount: { type: number, format: float }
+        method: { type: string, enum: [CASH, UPI, CARD, BANK_TRANSFER, OTHER] }
+        status: { type: string, enum: [PAID, REFUNDED] }
+        transaction_reference: { type: string, nullable: true }
+        paid_at: { type: string, format: date-time }
+        created_by: { type: string, format: uuid }
+        created_at: { type: string, format: date-time }
+    PaymentCreateRequest:
+      type: object
+      required: [amount, method]
+      properties:
+        amount: { type: number, format: float, example: 1000 }
+        method: { type: string, enum: [CASH, UPI, CARD, BANK_TRANSFER, OTHER] }
+        transaction_reference: { type: string }
+    JobReceiptResponse:
+      type: object
+      properties:
+        receipt:
+          type: object
+          properties:
+            id: { type: string, format: uuid }
+            business_id: { type: string, format: uuid }
+            job_id: { type: string, format: uuid }
+            receipt_number: { type: string }
+            public_token: { type: string }
+            issued_at: { type: string, format: date-time }
+            created_at: { type: string, format: date-time }
+        public_url: { type: string, example: "/r/abc123..." }
+    Paginated:
+      type: object
+      properties:
+        data:
+          type: array
+          items: {}
+        pagination:
+          type: object
+          properties:
+            page: { type: integer }
+            limit: { type: integer }
+            total: { type: integer }
+    DashboardToday:
+      type: object
+      properties:
+        date: { type: string, format: date, example: "2026-09-16" }
+        jobs:
+          type: object
+          properties:
+            total: { type: integer }
+            pending: { type: integer }
+            accepted: { type: integer }
+            on_the_way: { type: integer }
+            started: { type: integer }
+            completed: { type: integer }
+            cancelled: { type: integer }
+        collection:
+          type: object
+          properties:
+            total: { type: number, format: float }
+            cash: { type: number, format: float }
+            upi: { type: number, format: float }
+            card: { type: number, format: float }
+            bank_transfer: { type: number, format: float }
+            other: { type: number, format: float }
+paths:
+  /api/v1/auth/register:
+    post:
+      tags: [auth]
+      security: []
+      summary: Register a new business and owner account
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RegisterRequest" }
+      responses:
+        "201":
+          description: Created - returns token, user, and business
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AuthResponse" }
+        "400":
+          description: Invalid body or validation error
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+  /api/v1/auth/login:
+    post:
+      tags: [auth]
+      security: []
+      summary: Login with phone and password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/LoginRequest" }
+      responses:
+        "200":
+          description: OK - returns JWT token, user, and business
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AuthResponse" }
+        "401":
+          description: Invalid credentials
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+  /api/v1/auth/me:
+    get:
+      tags: [auth]
+      summary: Current user and business
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MeResponse" }
+        "401":
+          description: Missing or invalid token
+  /api/v1/auth/logout:
+    post:
+      tags: [auth]
+      summary: Logout (stateless - client just discards the token)
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+  /api/v1/business/me:
+    get:
+      tags: [business]
+      summary: Get own business profile
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Business" }
+    put:
+      tags: [business]
+      summary: Update own business (OWNER only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/BusinessUpdateRequest" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Business" }
+        "403":
+          description: Not owner
+  /api/v1/customers:
+    get:
+      tags: [customers]
+      summary: List customers (OWNER/ADMIN)
+      parameters:
+        - { name: search, in: query, schema: { type: string } }
+        - { name: page, in: query, schema: { type: integer, default: 1 } }
+        - { name: limit, in: query, schema: { type: integer, default: 20 } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Paginated" }
+    post:
+      tags: [customers]
+      summary: Create customer (OWNER/ADMIN)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CustomerCreateRequest" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Customer" }
+  /api/v1/customers/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      tags: [customers]
+      summary: Get customer (OWNER/ADMIN)
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Customer" }
+    put:
+      tags: [customers]
+      summary: Update customer (OWNER/ADMIN)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CustomerUpdateRequest" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Customer" }
+    delete:
+      tags: [customers]
+      summary: Delete customer (OWNER/ADMIN)
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+  /api/v1/customers/{id}/jobs:
+    get:
+      tags: [customers]
+      summary: List jobs for a customer (OWNER/ADMIN)
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: "#/components/schemas/Job" }
+  /api/v1/technicians:
+    get:
+      tags: [technicians]
+      summary: List technicians (OWNER/ADMIN)
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TechniciansList" }
+    post:
+      tags: [technicians]
+      summary: Create technician (OWNER/ADMIN)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/TechnicianCreateRequest" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Technician" }
+  /api/v1/technicians/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      tags: [technicians]
+      summary: Get technician (OWNER/ADMIN)
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Technician" }
+    put:
+      tags: [technicians]
+      summary: Update technician (OWNER/ADMIN)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/TechnicianUpdateRequest" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Technician" }
+    delete:
+      tags: [technicians]
+      summary: Deactivate technician (OWNER/ADMIN)
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+  /api/v1/technicians/{id}/jobs:
+    get:
+      tags: [technicians]
+      summary: List jobs assigned to a technician (OWNER/ADMIN)
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: "#/components/schemas/Job" }
+  /api/v1/jobs:
+    get:
+      tags: [jobs]
+      summary: List jobs (OWNER/ADMIN) with filters
+      parameters:
+        - { name: status, in: query, schema: { type: string } }
+        - { name: technician_id, in: query, schema: { type: string, format: uuid } }
+        - { name: customer_id, in: query, schema: { type: string, format: uuid } }
+        - { name: date, in: query, schema: { type: string, format: date } }
+        - { name: search, in: query, schema: { type: string } }
+        - { name: sort_by, in: query, schema: { type: string } }
+        - { name: page, in: query, schema: { type: integer, default: 1 } }
+        - { name: limit, in: query, schema: { type: integer, default: 20 } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Paginated" }
+    post:
+      tags: [jobs]
+      summary: Create job (OWNER/ADMIN)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/JobCreateRequest" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Job" }
+  /api/v1/jobs/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      tags: [jobs]
+      summary: Get job (any role; technician must be assigned)
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Job" }
+    put:
+      tags: [jobs]
+      summary: Update job - PENDING only (OWNER/ADMIN)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/JobUpdateRequest" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Job" }
+    delete:
+      tags: [jobs]
+      summary: Cancel job (OWNER/ADMIN)
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+                  job: { $ref: "#/components/schemas/Job" }
+  /api/v1/jobs/{id}/accept:
+    post:
+      tags: [jobs]
+      summary: Accept job - assigned technician only
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Job" }
+  /api/v1/jobs/{id}/on-the-way:
+    post:
+      tags: [jobs]
+      summary: Mark job on the way - assigned technician only
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Job" }
+  /api/v1/jobs/{id}/start:
+    post:
+      tags: [jobs]
+      summary: Start job - assigned technician only
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Job" }
+  /api/v1/jobs/{id}/complete:
+    post:
+      tags: [jobs]
+      summary: Complete job (items required, generates receipt) - assigned technician only
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CompleteRequest" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Job" }
+  /api/v1/jobs/{id}/cancel:
+    post:
+      tags: [jobs]
+      summary: Cancel job (OWNER/ADMIN)
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Job" }
+  /api/v1/jobs/{id}/payments:
+    get:
+      tags: [payments]
+      summary: List payments for a job (owner/admin, or assigned technician)
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: "#/components/schemas/Payment" }
+    post:
+      tags: [payments]
+      summary: Record a payment for a job
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PaymentCreateRequest" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Payment" }
+  /api/v1/jobs/{id}/receipt:
+    get:
+      tags: [receipts]
+      summary: Get receipt for a job
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/JobReceiptResponse" }
+  /api/v1/technician/jobs:
+    get:
+      tags: [jobs]
+      summary: Authenticated technician's own jobs
+      parameters:
+        - { name: filter, in: query, schema: { type: string, enum: [today, upcoming, completed] } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: "#/components/schemas/Job" }
+  /api/v1/dashboard/today:
+    get:
+      tags: [dashboard]
+      summary: Today's job counts and collection (OWNER/ADMIN)
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DashboardToday" }
+  /api/v1/public/receipts/{token}:
+    get:
+      tags: [receipts]
+      security: []
+      summary: Public receipt as JSON (no auth)
+      parameters:
+        - { name: token, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+  /r/{token}:
+    get:
+      tags: [receipts]
+      security: []
+      summary: Public receipt as HTML page (no auth)
+      parameters:
+        - { name: token, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: OK - text/html receipt page

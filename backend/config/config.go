@@ -16,6 +16,7 @@ type Config struct {
 	JWTExpiration   time.Duration
 	CORSOrigins     []string
 	APIPrefix       string
+	Debug           bool
 }
 
 func Load() (*Config, error) {
@@ -27,6 +28,7 @@ func Load() (*Config, error) {
 		JWTExpiration: mustDuration(getEnv("JWT_EXPIRATION", "24h")),
 		CORSOrigins:   splitCSV(getEnv("CORS_ORIGINS", "http://localhost:5173")),
 		APIPrefix:     "/api/v1",
+		Debug:         getEnv("DEBUG", "false") == "true",
 	}
 
 	if len(cfg.CORSOrigins) == 0 {
